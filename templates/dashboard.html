@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+  <head>
+    <title>AI Intrusion Detection System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+      body {
+        font-family: Arial;
+        background-color: #0f172a;
+        color: white;
+        text-align: center;
+      }
+
+      .container {
+        width: 80%;
+        margin: auto;
+      }
+
+      .card {
+        display: inline-block;
+        padding: 20px;
+        margin: 15px;
+        border-radius: 10px;
+        background: #1e293b;
+        width: 200px;
+      }
+
+      h2 {
+        color: #38bdf8;
+      }
+
+      table {
+        margin: auto;
+        border-collapse: collapse;
+        width: 60%;
+      }
+
+      th,
+      td {
+        border: 1px solid #444;
+        padding: 10px;
+      }
+
+      th {
+        background: #334155;
+      }
+
+      .chart-container {
+        width: 300px;
+        margin: auto;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>🛡 AI Network Intrusion Detection System</h1>
+
+      <!-- Stats Cards -->
+      <div class="card">
+        <h2>Total Packets</h2>
+        <h3>{{ total }}</h3>
+      </div>
+
+      <div class="card">
+        <h2>Attacks</h2>
+        <h3 style="color: red">{{ attacks }}</h3>
+      </div>
+
+      <div class="card">
+        <h2>Normal</h2>
+        <h3 style="color: lightgreen">{{ normal }}</h3>
+      </div>
+
+      <div class="card">
+        <h2>Port Scans</h2>
+        <h3 id="portScans">0</h3>
+      </div>
+
+      <!-- Pie Chart -->
+      <h2>Traffic Overview</h2>
+      <div class="chart-container">
+        <canvas id="trafficChart"></canvas>
+      </div>
+
+      <!-- PPS Line Chart -->
+      <h2>Packets per Second</h2>
+      <div class="chart-container">
+        <canvas id="ppsChart"></canvas>
+      </div>
+
+      <!-- Top Attackers Table -->
+      <h2>Top Attacker IPs</h2>
+      <table>
+        <tr>
+          <th>IP Address</th>
+          <th>Packets</th>
+        </tr>
+        {% for ip,count in attackers %}
+        <tr>
+          <td>{{ ip }}</td>
+          <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <script>
+      const trafficCtx = document.getElementById('trafficChart');
+      const trafficChart = new Chart(trafficCtx, {
+          type: 'pie',
+          data: {
+              labels: ['Attack','Normal'],
+              datasets: [{
+                  data: [{{ attacks }}, {{ normal }}],
+                  backgroundColor: ['#ef4444', '#22c55e']
+              }]
+          },
+          options: { responsive: true }
+      });
+
+      const ppsCtx = document.getElementById('ppsChart').getContext('2d');
+      const ppsChart = new Chart(ppsCtx, {
+          type: 'line',
+          data: {
+              labels: Array(30).fill(''),
+              datasets: [{
+                  label: 'Packets/sec',
+                  data: Array(30).fill(0),
+                  borderColor: '#38bdf8',
+                  backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                  fill: true,
+                  tension: 0.3
+              }]
+          },
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      async function updateDashboard(){
+          const response = await fetch('/stats_data');
+          const data = await response.json();
+
+          // Update pie chart
+          trafficChart.data.datasets[0].data = [data.attacks, data.normal];
+          trafficChart.update();
+
+          // Update PPS chart
+          const ppsResponse = await fetch('/pps_data');
+          const ppsData = await ppsResponse.json();
+          ppsChart.data.datasets[0].data = ppsData;
+          ppsChart.update();
+
+          // Update cards
+          document.querySelectorAll('.card h3')[0].textContent = data.total;
+          document.querySelectorAll('.card h3')[1].textContent = data.attacks;
+          document.querySelectorAll('.card h3')[2].textContent = data.normal;
+          document.getElementById('portScans').textContent = data.port_scans;
+
+          // Update top attackers table
+          const table = document.querySelector('table');
+          table.innerHTML = "<tr><th>IP Address</th><th>Packets</th></tr>";
+          data.attackers.forEach(([ip,count]) => {
+              const row = table.insertRow();
+              row.insertCell(0).textContent = ip;
+              row.insertCell(1).textContent = count;
+          });
+      }
+
+      setInterval(updateDashboard, 1000);
+    </script>
+  </body>
+</html>
